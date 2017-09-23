@@ -1,0 +1,230 @@
+package sample;
+import javafx.concurrent.Service;
+import javafx.concurrent.Task;
+import javafx.event.ActionEvent;
+import javafx.fxml.FXML;
+import javafx.scene.control.Button;
+import javafx.scene.control.TextArea;
+
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.Scanner;
+import java.util.StringTokenizer;
+import java.util.Vector;
+
+public class Controller {
+    public Button bstart;
+    public TextArea textArea1;
+    public Button bstop;
+    public TextArea textArea2;
+
+
+    private ServerSocket introSocket;
+    private Socket connectionSocket;
+    private boolean stopped;
+    private Service<Void> service;
+    static Vector<ClientDealer> ar = new Vector<>();
+    static int i = 0;
+    @FXML
+    public void initialize() throws IOException {
+        textArea1.setEditable(false);
+        textArea1.setText("<-----------Welcome---------->\n");
+        textArea2.setText("<-----------Online---------->\n");
+        stopped=true;
+        bstop.setDisable(true);
+        introSocket = new ServerSocket(6789);
+        connectionSocket=null;
+    }
+
+
+    public void startClicked(ActionEvent actionEvent) throws IOException {
+        stopped=false;
+        bstop.setDisable(false);
+        bstart.setDisable(true);
+
+        service = new Service<Void>() {
+            @Override
+            protected Task<Void> createTask() {
+
+                return new Task<Void>() {
+
+                    @Override
+                    protected Void call() throws Exception {
+
+                        while (true){
+                            if (stopped) break;
+                            try {
+                                connectionSocket = introSocket.accept();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                                break;
+                            }
+                            DataInputStream dis = new DataInputStream(connectionSocket.getInputStream());
+                            DataOutputStream dos = new DataOutputStream(connectionSocket.getOutputStream());
+                            ClientDealer cl= new ClientDealer(connectionSocket,"client"+i,i,dis,dos );
+                            System.out.println(i+" class created");
+                            Task<Void> task=cl;
+                            Thread t = new Thread(task);
+                            t.setDaemon(true);
+                            ar.add(cl);
+                            t.start();
+
+                            textArea1.appendText("Client [" + i + "] is now connected.\n");
+                            textArea2.appendText(cl.id + "\n");
+                            i++;
+                        }
+                        return null;
+                    }
+                };
+            }
+
+
+
+            @Override
+            protected void cancelled() {
+                super.cancelled();
+                textArea1.appendText("Service Canceled\n");
+            }
+        };
+
+        service.start();
+
+
+    }
+
+
+
+    public class ClientDealer extends Task<Void>
+    {
+        int id;
+        private String name;
+        final DataOutputStream dos;
+        final DataInputStream dis;
+        Socket connectionSocket;
+        boolean isLoggedin;
+        String receivedactual=null;
+        String MsgToSend=null;
+        String recipient=null;
+        String s;
+
+
+        public ClientDealer(Socket s,String name,Integer id, DataInputStream dis, DataOutputStream dos) {
+            this.name = name;
+            this.connectionSocket=s;
+            this.id=id;
+            this.dos=dos;
+            this.dis=dis;
+            this.isLoggedin=true;
+        }
+
+
+
+        @Override
+        protected Void call() throws Exception {
+
+            String received;
+
+            while(true)
+            {
+                try{
+
+                    System.out.println(MsgToSend+":"+id);
+                    received=dis.readUTF();
+                    System.out.println(received+":"+id);
+                    if(received.equals("ok"))
+                    {
+                        System.out.println(MsgToSend+"ok er vitre");
+                        //this.dos.writeUTF(MsgToSend);
+                        System.out.println("joy bangla");
+                        for (ClientDealer mc : Controller.ar)
+                        {
+                            System.out.println(mc.name);
+                            //mc.name.equals(recipient) &&
+                            if (mc.name.equals(s) && mc.isLoggedin==true)
+                            {
+
+                                this.dos.writeUTF(mc.MsgToSend);
+                                //System.out.println("paisi");
+                                break;
+                            }
+
+                        }
+
+                    }
+                    else
+                    {
+                        System.out.println("not ok er vitre");
+                        receivedactual=received;
+                        textArea1.appendText("Cliend No. "+id+" says "+receivedactual+"\n");
+                        StringTokenizer st = new StringTokenizer(receivedactual, "#");
+                        MsgToSend = st.nextToken();
+                        System.out.println(MsgToSend+"else er");
+                        recipient = st.nextToken();
+                        System.out.println(recipient+"else er recepient");
+                        for (ClientDealer mc : Controller.ar)
+                        {
+                            System.out.println(mc.name);
+                            //mc.name.equals(recipient) &&
+                            if (mc.name.equals(recipient) && mc.isLoggedin==true)
+                            {
+
+                                mc.dos.writeUTF("@Do you want to receive from client"+this.name);
+                                mc.s=this.name;
+                                System.out.println(s);
+                                //System.out.println("paisi");
+                                break;
+                            }
+                            else
+                            {
+                                this.dos.writeUTF("He is not online");
+                            }
+                        }
+
+                    }
+
+
+                    if(received.equals("logout")){
+                        System.out.println("gelam");
+                        this.isLoggedin=false;
+                        this.connectionSocket.close();
+                        break;
+                    }
+                    System.out.println("1bar ghurse, ok er age");
+
+
+                }catch (Exception e) {
+                    System.out.println("Error! Connection lost for id "+id);
+                    e.printStackTrace();
+                }
+
+            }
+            try
+            {
+
+                this.dis.close();
+                this.dos.close();
+
+            }catch(IOException e){
+                e.printStackTrace();
+            }
+            System.out.println("Client "+id+" connection Canceled");
+            return null;
+        }
+
+    }
+
+
+
+    public void bStopClicked(ActionEvent actionEvent) {
+        stopped=true;
+        bstop.setDisable(true);
+        bstart.setDisable(false);
+        service.cancel();
+
+    }
+
+
+
+}
+
