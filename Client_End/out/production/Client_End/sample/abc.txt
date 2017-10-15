@@ -1,0 +1,143 @@
+package sample;
+import javafx.concurrent.Service;
+import javafx.event.ActionEvent;
+import javafx.fxml.FXML;
+import javafx.scene.control.Button;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+
+import java.io.*;
+import java.net.Socket;
+import java.util.Scanner;
+import java.util.StringTokenizer;
+
+public class Controller {
+
+
+    public TextArea textArea1;
+    public Button bsend;
+    public TextField textInput;
+    public TextArea textArea2;
+    Socket clientSocket;
+    DataInputStream dis;
+    DataOutputStream dos;
+    int k;
+
+
+    @FXML
+    public void initialize() throws IOException {
+        textArea1.setEditable(false);
+        textArea1.appendText("\n");
+        try {
+            clientSocket = new Socket("localhost", 6789);
+            //System.out.println(clientSocket.getLocalAddress());
+
+            textArea1.appendText("Connected\n");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        Scanner scn = new Scanner(System.in);
+        dis = new DataInputStream(clientSocket.getInputStream());
+        dos = new DataOutputStream(clientSocket.getOutputStream());
+
+         String write;
+
+        Thread sendMessage = new Thread(new Runnable()
+        {
+            @Override
+            public void run() {
+                while (true) {
+
+
+                    //sentence = scn.nextLine();
+                    String msg = scn.nextLine();
+
+                    try {
+                        // write on the output stream
+                        textArea1.appendText("From Client : " + msg + "\n");
+                        if(msg.charAt(0)=='&'){
+                            int l=msg.length();
+                            String actual=msg.substring(1,l);
+                            StringTokenizer p= new StringTokenizer(actual,"#");
+                            String path=p.nextToken();
+                            String client=p.nextToken();
+
+                            File fl =new File(path);
+                            String name=fl.getName();
+                            int size= (int) fl.length();
+                            String send="&"+name+"#"+size+"#"+client;
+                            dos.writeUTF(send);
+                        }
+
+                        else dos.writeUTF(msg);
+
+
+                        if(msg=="logout") {
+                            k = 1;
+                            break;
+                        }
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+
+
+        Thread readMessage = new Thread(new Runnable()
+        {
+            @Override
+            public void run() {
+
+                while (true) {
+
+                    try {
+                        // read the message sent to this client
+                        if(k==1) {break;}
+                        else {
+                            String msg = dis.readUTF();
+
+                            System.out.println(msg);
+                            textArea1.appendText("Received from another Client : " + msg + "\n");
+                        }
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+
+        sendMessage.start();
+        readMessage.start();
+
+
+
+    }
+    private  void clear()
+    {
+        try
+        {
+            dis.close();
+            dos.close();
+            clientSocket.close();
+
+        }
+        catch(Exception e)
+        {
+
+        }
+    }
+
+
+    public void bSendClicked(ActionEvent actionEvent) throws IOException {
+        //Scanner scn = new Scanner(System.in);
+         //sentence = textInput.getText();
+
+
+    }
+
+
+
+}
